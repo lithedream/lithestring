@@ -3,6 +3,7 @@ package lithe.core;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -43,8 +44,9 @@ public class LitheString {
 
         try (PushbackInputStream bais = new PushbackInputStream(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)))) {
             boolean caps = false;
-            byte byt;
-            while ((byt = (byte) bais.read()) != -1) {
+            int in;
+            while ((in = bais.read()) != -1) {
+                byte byt = (byte) in;
                 if (byt >= 97 && byt <= 122) { // lower
                     if (caps) {
                         output.write01("00000");
@@ -62,21 +64,9 @@ public class LitheString {
                 } else if (byt == 32) { //space
                     output.write01("11011");
                 } else {
-
-                    int nExtraByte = 0;
-                    if (!startsWith(byt, "0")) { //1 byte
-                        if (startsWith(byt, "110")) { //2 byte
-                            nExtraByte = 1;
-                        } else if (startsWith(byt, "1110")) { //3 byte
-                            nExtraByte = 2;
-                        } else if (startsWith(byt, "11110")) { //4 byte
-                            nExtraByte = 3;
-                        }
-                    }
-
                     output.write01("111");
                     output.write(byt);
-                    for (int i = 0; i < nExtraByte; i++) {
+                    for (int i = 0; i < getNExtraBytes(byt); i++) {
                         output.write((byte) bais.read());
                     }
                 }
@@ -84,7 +74,22 @@ public class LitheString {
         } catch (IOException e) {
 
         }
+        output.close();
         return output.toByteArray();
+    }
+
+    private static int getNExtraBytes(byte byt) {
+        int nExtraByte = 0;
+        if (!startsWith(byt, "0")) { //1 byte
+            if (startsWith(byt, "110")) { //2 byte
+                nExtraByte = 1;
+            } else if (startsWith(byt, "1110")) { //3 byte
+                nExtraByte = 2;
+            } else if (startsWith(byt, "11110")) { //4 byte
+                nExtraByte = 3;
+            }
+        }
+        return nExtraByte;
     }
 
     private static boolean startsWith(byte byt, String binaryString) {
@@ -104,14 +109,80 @@ public class LitheString {
         return true;
     }
 
-    private static byte[] z2(String input) {
+    public static byte[] z2(String input) {
+        List<UTF8Char> listChars = new ArrayList<>();
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
+            int in;
+            while ((in = bais.read()) != -1) {
+                byte byt = (byte) in;
+                int nExtraByte = getNExtraBytes(byt);
 
-        BitWriter output = new BitWriter();
-        output.write01("1010");
+                byte[] utf8Bytes = new byte[nExtraByte + 1];
+                utf8Bytes[0] = byt;
 
+                for (int i = 0; i < nExtraByte; i++) {
+                    utf8Bytes[i + 1] = (byte) bais.read();
+                }
+                listChars.add(new UTF8Char(utf8Bytes));
+            }
+        } catch (IOException e) {
+
+        }
+
+        BitWriter output = innerZ2(listChars, 0);
+        int spareBits = output.getSpareBits();
+        if (spareBits > 0) {
+            output = innerZ2(listChars, spareBits);
+        }
         output.close();
         return output.toByteArray();
+    }
 
+    private static BitWriter innerZ2(List<UTF8Char> listChars, int spareBits) {
+        BitWriter output = new BitWriter();
+        output.write01("1010");
+        for (int i = 0; i < spareBits; i++) {
+            output.write01("0");
+        }
+        output.write01("1");
+        Map<UTF8Char, String> huff = Huffer.huff(listChars);
+        TreeMap<String, UTF8Char> reverse = new TreeMap<>();
+        for (Map.Entry<UTF8Char, String> e : huff.entrySet()) {
+            reverse.put(e.getValue(), e.getKey());
+        }
+        int length = 0;
+        for (Map.Entry<String, UTF8Char> e : reverse.entrySet()) {
+            int difference = e.getKey().length() - length;
+            if (difference > 0) {
+                for (int i = 0; i < difference; i++) {
+                    output.write01("0");
+                }
+                output.write01("1");
+                length = e.getKey().length();
+            } else {
+                output.write01("10");
+            }
+            output.write01(e.getKey());
+
+            byte byt = e.getValue().getFirst();
+            if (byt >= 97 && byt <= 122) { // lower
+                output.writeLast5Bits((byte) (byt - 96));
+
+            } else if (byt == 32) { //space
+                output.write01("11011");
+            } else {
+                output.write01("111");
+                for (int i = 0; i < e.getValue().getBytes().length; i++) {
+                    output.write(e.getValue().getBytes()[i]);
+
+                }
+            }
+        }
+        output.write01("11");
+        for (UTF8Char c : listChars) {
+            output.write01(huff.get(c));
+        }
+        return output;
     }
 
     public static byte[] z3(String input) {
@@ -182,18 +253,8 @@ public class LitheString {
                 bitReader.advance(3);
                 byte read = bitReader.read();
 
-                int nExtraByte = 0;
-                if (!startsWith(read, "0")) { //1 byte
-                    if (startsWith(read, "110")) { //2 byte
-                        nExtraByte = 1;
-                    } else if (startsWith(read, "1110")) { //3 byte
-                        nExtraByte = 2;
-                    } else if (startsWith(read, "11110")) { //4 byte
-                        nExtraByte = 3;
-                    }
-                }
                 baos.write(read);
-                for (int i = 0; i < nExtraByte; i++) {
+                for (int i = 0; i < getNExtraBytes(read); i++) {
                     baos.write(bitReader.read());
                 }
             } else {
@@ -273,6 +334,13 @@ public class LitheString {
                     b.write(current);
                 }
             }
+        }
+
+        public int getSpareBits() {
+            if (curpos == START) {
+                return 0;
+            }
+            return curpos + 1;
         }
 
 
@@ -398,5 +466,121 @@ public class LitheString {
         return (value & (1 << n)) != 0;
     }
 
+    private static class Huffer {
 
+        private static class HuffmanTree<T> implements Comparable<HuffmanTree<T>> {
+
+            public final int freq;
+
+            public final HuffmanTree<T> l, r;
+
+            public final T value;
+
+            private final boolean isLeaf;
+
+            public HuffmanTree(HuffmanTree<T> l, HuffmanTree<T> r) {
+                freq = l.freq + r.freq;
+                this.l = l;
+                this.r = r;
+                value = null;
+                isLeaf = false;
+            }
+
+            public HuffmanTree(int freq, T value) {
+                this.freq = freq;
+                this.value = value;
+                l = null;
+                r = null;
+                isLeaf = true;
+            }
+
+            public int compareTo(HuffmanTree o) {
+                return freq - o.freq;
+            }
+
+        }
+
+
+        private static <T> void toMap(HuffmanTree<T> tree, StringBuilder prefix, Map<T, String> t) {
+            if (tree.isLeaf) {
+                t.put(tree.value, prefix.toString());
+            } else {
+                prefix.append('0');
+                toMap(tree.l, prefix, t);
+                prefix.deleteCharAt(prefix.length() - 1);
+
+                prefix.append('1');
+                toMap(tree.r, prefix, t);
+                prefix.deleteCharAt(prefix.length() - 1);
+            }
+        }
+
+        private static <T> HuffmanTree makeHuffmanTree(Map<T, Integer> objFreqs) {
+            PriorityQueue<HuffmanTree<T>> huffmanTrees = new PriorityQueue<HuffmanTree<T>>();
+            for (Map.Entry<T, Integer> entry : objFreqs.entrySet()) {
+                huffmanTrees.offer(new HuffmanTree<T>(entry.getValue(), entry.getKey()));
+            }
+            while (huffmanTrees.size() > 1) {
+                HuffmanTree<T> l = huffmanTrees.poll();
+                HuffmanTree<T> r = huffmanTrees.poll();
+                huffmanTrees.offer(new HuffmanTree<T>(l, r));
+            }
+            return huffmanTrees.poll();
+        }
+
+        public static <T> Map<T, String> huff(Collection<T> input) {
+            Map<T, Integer> objectFreqs = new HashMap<>();
+            for (T obj : input) {
+                Integer count = objectFreqs.get(obj);
+                objectFreqs.put(obj, count == null ? 1 : count + 1);
+            }
+            Map<T, String> map = new HashMap<T, String>();
+            if (objectFreqs.size() == 1) {
+                map.put(objectFreqs.entrySet().iterator().next().getKey(), "1");
+            } else {
+                toMap(makeHuffmanTree(objectFreqs), new StringBuilder(), map);
+            }
+            return map;
+        }
+
+    }
+
+    private static class UTF8Char {
+        private final byte[] bytes;
+
+        private UTF8Char(byte[] bytes) {
+            this.bytes = bytes;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || !(obj instanceof UTF8Char)) {
+                return false;
+            }
+            return Arrays.equals(this.bytes, ((UTF8Char) obj).bytes);
+        }
+
+        public byte[] getBytes() {
+            return bytes;
+        }
+
+
+        public byte getFirst() {
+            return bytes[0];
+        }
+
+        @Override
+        public int hashCode() {
+            if (bytes.length == 1) {
+                return bytes[0];
+            } else if (bytes.length == 2) {
+                return ((0xFF & bytes[1]) << 8) | (0xFF & bytes[0]);
+            } else if (bytes.length == 3) {
+                return ((0xFF & bytes[2]) << 16) | ((0xFF & bytes[1]) << 8) | (0xFF & bytes[0]);
+            } else {
+                return ((0xFF & bytes[3]) << 24) | ((0xFF & bytes[2]) << 16) | ((0xFF & bytes[1]) << 8) | (0xFF & bytes[0]);
+            }
+        }
+
+    }
 }
