@@ -11,7 +11,7 @@ I dreamed a compression algorithm expecially useful for short strings, without f
 The compression algorithm chooses the best approach between:
 * Plain UTF-8 encoding (as is, without overhead)
 * An encoding which uses 5 bits for a-z, A-Z, space, and encodes every other UTF-8 character with 3 bits of overhead (for really short Latin strings)
-* An intermediate algorithm still to be implemented
+* An intermediate algorithm based on Huffman encoding (still to be completed)
 * 1 byte of overhead then GZIP compression (for long strings)
 
 The decompression algorithm looks if it is a plain UTF-8 encoding or a compressed one, and in the latter case reads the data header to apply the correct decoding algorithm.
