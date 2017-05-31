@@ -1,7 +1,6 @@
 package lithe.core;
 
 import java.io.*;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.zip.GZIPInputStream;
@@ -29,20 +28,23 @@ public class LitheString {
 
 
     public static byte[] zip(String input) {
-
-        byte[] z0 = input.getBytes(Charset.forName("UTF-8"));
-        byte[] z1 = z1(input);
-        //byte[] z2 = z2(input);
+        byte[] z0 = input.getBytes(StandardCharsets.UTF_8);
+        byte[] z1 = privateZ1(z0);
+        byte[] z2 = privateZ2(z0);
         byte[] z3 = z3(input);
 
-        return shortest(z0, z1, /*z2,*/ z3);
+        return shortest(z0, z1, z2, z3);
     }
 
     public static byte[] z1(String input) {
+        return privateZ1(input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static byte[] privateZ1(byte[] input) {
         BitWriter output = new BitWriter();
         output.write01("100");
 
-        try (PushbackInputStream bais = new PushbackInputStream(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)))) {
+        try (PushbackInputStream bais = new PushbackInputStream(new ByteArrayInputStream(input))) {
             boolean caps = false;
             int in;
             while ((in = bais.read()) != -1) {
@@ -110,8 +112,12 @@ public class LitheString {
     }
 
     public static byte[] z2(String input) {
+        return privateZ2(input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static byte[] privateZ2(byte[] input) {
         List<UTF8Char> listChars = new ArrayList<>();
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(input)) {
             int in;
             while ((in = bais.read()) != -1) {
                 byte byt = (byte) in;
@@ -129,42 +135,51 @@ public class LitheString {
 
         }
 
-        BitWriter output = innerZ2(listChars, 0);
+        Map<UTF8Char, String> huff = Huffer.huff(listChars);
+
+        List<Map.Entry<UTF8Char, String>> listHuff = new ArrayList<>();
+        for (Map.Entry<UTF8Char, String> e : huff.entrySet()) {
+            listHuff.add(new AbstractMap.SimpleEntry<UTF8Char, String>(e.getKey(), e.getValue()));
+        }
+        Collections.sort(listHuff, new Comparator<Map.Entry<UTF8Char, String>>() {
+            @Override
+            public int compare(Map.Entry<UTF8Char, String> o1, Map.Entry<UTF8Char, String> o2) {
+                return Integer.compare(o1.getValue().length(), o2.getValue().length());
+            }
+        });
+
+        BitWriter output = innerZ2(listChars, 0, huff, listHuff);
         int spareBits = output.getSpareBits();
         if (spareBits > 0) {
-            output = innerZ2(listChars, spareBits);
+            output = innerZ2(listChars, spareBits, huff, listHuff);
         }
         output.close();
         return output.toByteArray();
     }
 
-    private static BitWriter innerZ2(List<UTF8Char> listChars, int spareBits) {
+    private static BitWriter innerZ2(List<UTF8Char> listChars, int spareBits, Map<UTF8Char, String> huff, List<Map.Entry<UTF8Char, String>> listHuff) {
         BitWriter output = new BitWriter();
         output.write01("1010");
         for (int i = 0; i < spareBits; i++) {
             output.write01("0");
         }
         output.write01("1");
-        Map<UTF8Char, String> huff = Huffer.huff(listChars);
-        TreeMap<String, UTF8Char> reverse = new TreeMap<>();
-        for (Map.Entry<UTF8Char, String> e : huff.entrySet()) {
-            reverse.put(e.getValue(), e.getKey());
-        }
+
         int length = 0;
-        for (Map.Entry<String, UTF8Char> e : reverse.entrySet()) {
-            int difference = e.getKey().length() - length;
+        for (Map.Entry<UTF8Char, String> e : listHuff) {
+            int difference = e.getValue().length() - length;
             if (difference > 0) {
                 for (int i = 0; i < difference; i++) {
                     output.write01("0");
                 }
                 output.write01("1");
-                length = e.getKey().length();
+                length = e.getValue().length();
             } else {
                 output.write01("10");
             }
-            output.write01(e.getKey());
+            output.write01(e.getValue());
 
-            byte byt = e.getValue().getFirst();
+            byte byt = e.getKey().getFirst();
             if (byt >= 97 && byt <= 122) { // lower
                 output.writeLast5Bits((byte) (byt - 96));
 
@@ -172,9 +187,8 @@ public class LitheString {
                 output.write01("11011");
             } else {
                 output.write01("111");
-                for (int i = 0; i < e.getValue().getBytes().length; i++) {
-                    output.write(e.getValue().getBytes()[i]);
-
+                for (int i = 0; i < e.getKey().getBytes().length; i++) {
+                    output.write(e.getKey().getBytes()[i]);
                 }
             }
         }
@@ -215,32 +229,15 @@ public class LitheString {
         if (startsWith(content[0], "100")) {
             return unzip1(content);
         }
+        if (startsWith(content[0], "1010")) {
+            return unzip2(content);
+        }
         if ((content[0] & 0xFF) == 0b10111111) {
             return unzip3(content);
         }
         return new String(content, StandardCharsets.UTF_8);
     }
 
-    private static String unzip3(byte[] content) {
-        ByteArrayInputStream bais = new ByteArrayInputStream(content);
-        bais.read();
-        try (GZIPInputStream gis = new GZIPInputStream(bais)) {
-            byte[] buffer = new byte[1024];
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-            int len;
-            while ((len = gis.read(buffer)) > 0) {
-                out.write(buffer, 0, len);
-            }
-
-            gis.close();
-            out.close();
-            return new String(out.toByteArray(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
-
-    }
 
     private static String unzip1(byte[] content) {
         BitReader bitReader = new BitReader(content);
@@ -271,6 +268,88 @@ public class LitheString {
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
     }
 
+    private static String unzip2(byte[] content) {
+        BitReader bitReader = new BitReader(content);
+        bitReader.advance(4);
+        while (bitReader.read(1) == 0) ;
+
+        int keyLength = 0;
+        Trie01<UTF8Char> trie = new Trie01<>();
+        Map<String, String> mmm = new HashMap<>();
+        while (!bitReader.isClosed()) {
+            if (bitReader.peek01("0")) {
+                while (bitReader.read(1) == 0) {
+                    keyLength++;
+                }
+            } else if (bitReader.peek01("10")) {
+                bitReader.advance(2);
+            } else if (bitReader.peek01("11")) {
+                bitReader.advance(2);
+                break;
+            }
+            String key = bitReader.readAsString(keyLength);
+            byte[] bytes;
+            if (bitReader.peek01("111")) {
+                bitReader.advance(3);
+                byte read = bitReader.read();
+
+                int nExtraBytes = getNExtraBytes(read);
+                bytes = new byte[nExtraBytes + 1];
+                bytes[0] = read;
+                for (int i = 0; i < nExtraBytes; i++) {
+                    bytes[i + 1] = bitReader.read();
+                }
+            } else {
+                byte read = bitReader.read(5);
+                if (read == 0) {
+                    throw new IllegalArgumentException(); //caps
+                } else if ((read & 0xFF) == 0b00011011) {
+                    bytes = new byte[1];
+                    bytes[0] = 32; // space
+                } else {
+                    bytes = new byte[1];
+                    bytes[0] = (byte) (read + 96); // lower
+                }
+            }
+            UTF8Char u = new UTF8Char(bytes);
+            trie.add(key, u);
+            mmm.put(key, u.asString());
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        while (!bitReader.isClosed()) {
+            Trie01.Scanner<UTF8Char> scanner = trie.scan(bitReader.read01Char());
+            while (!scanner.hasValue()) {
+                scanner.scan(bitReader.read01Char());
+            }
+            UTF8Char value = scanner.getValue();
+            for (byte b : value.getBytes()) {
+                baos.write(b);
+            }
+        }
+        return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private static String unzip3(byte[] content) {
+        ByteArrayInputStream bais = new ByteArrayInputStream(content);
+        bais.read();
+        try (GZIPInputStream gis = new GZIPInputStream(bais)) {
+            byte[] buffer = new byte[1024];
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+            int len;
+            while ((len = gis.read(buffer)) > 0) {
+                out.write(buffer, 0, len);
+            }
+
+            gis.close();
+            out.close();
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
     private static byte[] shortest(byte[]... bytes) {
         byte[] shortest = bytes[0];
         for (int i = 1; i < bytes.length; i++) {
@@ -286,7 +365,6 @@ public class LitheString {
         private final ByteArrayOutputStream b = new ByteArrayOutputStream();
         private byte current = 0;
         private int curpos = START;
-
 
         private boolean closed = false;
 
@@ -343,7 +421,6 @@ public class LitheString {
             return curpos + 1;
         }
 
-
         public byte[] toByteArray() {
             if (closed || curpos == START) {
                 return b.toByteArray();
@@ -355,7 +432,6 @@ public class LitheString {
                 return bytes2;
             }
         }
-
 
     }
 
@@ -421,6 +497,47 @@ public class LitheString {
             return toRet;
         }
 
+        public String readAsString(int numberOfBits) {
+            StringBuilder sb = new StringBuilder();
+            for (int bit = numberOfBits; bit-- > 0; ) {
+                if (bytePos >= bytes.length) {
+                    return null; //force return null because the stream ends
+                }
+                if (getNBitValue(bytes[bytePos], curpos)) {
+                    sb.append('1');
+                } else {
+                    sb.append('0');
+                }
+                if (curpos == 0) {
+                    bytePos++;
+                    curpos = START;
+                } else {
+                    curpos--;
+                }
+            }
+            return sb.toString();
+        }
+
+        public char read01Char() {
+            if (bytePos >= bytes.length) {
+                return 0; //force return 0 because the stream ends
+            }
+            char c;
+            if (getNBitValue(bytes[bytePos], curpos)) {
+                c = '1';
+            } else {
+                c = '0';
+            }
+            if (curpos == 0) {
+                bytePos++;
+                curpos = START;
+            } else {
+                curpos--;
+            }
+            return c;
+        }
+
+
         public boolean isClosed() {
             return bytePos >= bytes.length;
         }
@@ -461,7 +578,6 @@ public class LitheString {
         }
     }
 
-
     private static boolean getNBitValue(byte value, byte n) {
         return (value & (1 << n)) != 0;
     }
@@ -500,7 +616,6 @@ public class LitheString {
 
         }
 
-
         private static <T> void toMap(HuffmanTree<T> tree, StringBuilder prefix, Map<T, String> t) {
             if (tree.isLeaf) {
                 t.put(tree.value, prefix.toString());
@@ -534,7 +649,7 @@ public class LitheString {
                 Integer count = objectFreqs.get(obj);
                 objectFreqs.put(obj, count == null ? 1 : count + 1);
             }
-            Map<T, String> map = new HashMap<T, String>();
+            Map<T, String> map = new LinkedHashMap<T, String>();
             if (objectFreqs.size() == 1) {
                 map.put(objectFreqs.entrySet().iterator().next().getKey(), "1");
             } else {
@@ -548,7 +663,7 @@ public class LitheString {
     private static class UTF8Char {
         private final byte[] bytes;
 
-        private UTF8Char(byte[] bytes) {
+        public UTF8Char(byte[] bytes) {
             this.bytes = bytes;
         }
 
@@ -582,5 +697,79 @@ public class LitheString {
             }
         }
 
+        public String asString() {
+            return new String(bytes, StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public String toString() {
+            return "UTF8Char:[" + asString() + "][" + as01String() + "]";
+        }
+
+
+        public String as01String() {
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) {
+                for (int bit = 8; bit-- > 0; ) {
+                    sb.append(((b & (1 << bit)) != 0) ? '1' : '0');
+                }
+                sb.append(' ');
+            }
+            return sb.toString();
+        }
     }
+
+    private static class Trie01<T> {
+
+        private Trie01<T>[] chldrn = null;
+
+        private T value = null;
+
+        public void add(String s, T value) {
+            privateAdd(s, value, 0);
+        }
+
+        @SuppressWarnings("unchecked")
+        private void privateAdd(String s, T value2, int i) {
+            if (i < s.length()) {
+                char charati = s.charAt(i);
+                int index = charati == '0' ? 0 : charati == '1' ? 1 : -1;
+                if (chldrn == null) chldrn = (Trie01<T>[]) new Trie01[2];
+                if (chldrn[index] == null) chldrn[index] = new Trie01<>();
+                chldrn[index].privateAdd(s, value2, i + 1);
+            } else {
+                value = value2;
+            }
+        }
+
+        public Scanner<T> scan(char c) {
+            Scanner<T> sc = new Scanner<T>(this);
+            sc.scan(c);
+            return sc;
+        }
+
+        private static class Scanner<T> {
+
+            private Trie01<T> curNode;
+
+            private Scanner(Trie01<T> start) {
+                curNode = start;
+            }
+
+            public boolean hasValue() {
+                return curNode.chldrn == null;
+            }
+
+            public void scan(char c) {
+                curNode = curNode.chldrn[c == '0' ? 0 : c == '1' ? 1 : -1];
+            }
+
+            public T getValue() {
+                return curNode.value;
+            }
+
+        }
+
+    }
+
 }
