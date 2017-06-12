@@ -51,6 +51,15 @@ public class LitheString {
                 byte byt = (byte) in;
                 if (byt >= 97 && byt <= 122) { // lower
                     if (caps) {
+                        int in2 = bais.read();
+                        if (in2 != -1) {
+                            bais.unread(in2); // push it back
+                            if (in2 >= 65 && in2 <= 90) { // if the next is upper
+                                output.write01("111"); // write this in utf8
+                                output.write(byt);
+                                continue;
+                            }
+                        }
                         output.write01("00000");
                         caps = !caps;
                     }
@@ -58,6 +67,15 @@ public class LitheString {
 
                 } else if (byt >= 65 && byt <= 90) { // upper
                     if (!caps) {
+                        int in2 = bais.read();
+                        if (in2 != -1) {
+                            bais.unread(in2); // push it back
+                            if (in2 >= 97 && in2 <= 122) { // if the next is lower
+                                output.write01("111"); // write this in utf8
+                                output.write(byt);
+                                continue;
+                            }
+                        }
                         output.write01("00000");
                         caps = !caps;
                     }
@@ -179,17 +197,8 @@ public class LitheString {
             }
             output.write01(e.getValue());
 
-            byte byt = e.getKey().getFirst();
-            if (byt >= 97 && byt <= 122) { // lower
-                output.writeLast5Bits((byte) (byt - 96));
-
-            } else if (byt == 32) { //space
-                output.write01("11011");
-            } else {
-                output.write01("111");
-                for (int i = 0; i < e.getKey().getBytes().length; i++) {
-                    output.write(e.getKey().getBytes()[i]);
-                }
+            for (int i = 0; i < e.getKey().getBytes().length; i++) {
+                output.write(e.getKey().getBytes()[i]);
             }
         }
         output.write01("11");
@@ -288,28 +297,13 @@ public class LitheString {
                 break;
             }
             String key = bitReader.readAsString(keyLength);
-            byte[] bytes;
-            if (bitReader.peek01("111")) {
-                bitReader.advance(3);
-                byte read = bitReader.read();
+            byte read = bitReader.read();
 
-                int nExtraBytes = getNExtraBytes(read);
-                bytes = new byte[nExtraBytes + 1];
-                bytes[0] = read;
-                for (int i = 0; i < nExtraBytes; i++) {
-                    bytes[i + 1] = bitReader.read();
-                }
-            } else {
-                byte read = bitReader.read(5);
-                if (read == 0) {
-                    throw new IllegalArgumentException(); //caps
-                } else if ((read & 0xFF) == 0b00011011) {
-                    bytes = new byte[1];
-                    bytes[0] = 32; // space
-                } else {
-                    bytes = new byte[1];
-                    bytes[0] = (byte) (read + 96); // lower
-                }
+            int nExtraBytes = getNExtraBytes(read);
+            byte[] bytes = new byte[nExtraBytes + 1];
+            bytes[0] = read;
+            for (int i = 0; i < nExtraBytes; i++) {
+                bytes[i + 1] = bitReader.read();
             }
             UTF8Char u = new UTF8Char(bytes);
             trie.add(key, u);
