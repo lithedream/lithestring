@@ -1,3 +1,5 @@
+## lithestring
+
 ## Synopsis
 
 Java class to compress short (or long) strings
