@@ -4,6 +4,8 @@
 
 Java class to compress short (or long) strings
 
+Included in the lithecore library https://github.com/lithedream/lithecore
+
 ## Motivation
 
 I dreamed a compression algorithm expecially useful for short strings, without fear of taking up more space than the UTF-8 encoding of the original string.
