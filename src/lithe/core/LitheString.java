@@ -6,7 +6,9 @@ import java.util.*;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+
 public class LitheString {
+
     private byte[] content;
 
     public LitheString(String input) {
@@ -15,37 +17,117 @@ public class LitheString {
 
     @Override
     public boolean equals(Object obj) {
-        return this == obj || (obj != null && (obj instanceof LitheString) && ((LitheString) obj).content.equals(this.content));
+        return this == obj || (obj instanceof LitheString && Arrays.equals(((LitheString) obj).content, this.content));
     }
 
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(content);
+    }
+
+    /**
+     * Returns the zipped byte[] content
+     *
+     * @return the zipped byte[] content
+     */
     public byte[] getBytes() {
         return content;
     }
 
+    /**
+     * Returns the corresponding String content
+     *
+     * @return the corresponding String content
+     */
     public String getString() {
         return unzip(content);
     }
 
-
+    /**
+     * Compresses the string as best as it can
+     *
+     * @param input
+     * @return the compressed byte[]
+     */
     public static byte[] zip(String input) {
         byte[] z0 = input.getBytes(StandardCharsets.UTF_8);
-        byte[] z1 = privateZ1(z0);
-        byte[] z2 = privateZ2(z0);
-        byte[] z3 = z3(input);
-
-        return shortest(z0, z1, z2, z3);
+        return zipUTF8(z0);
     }
 
+    /**
+     * Compresses the string already in UTF-8 form as best as it can
+     *
+     * @param utf8Input
+     * @return the compressed byte[]
+     */
+    public static byte[] zipUTF8(byte[] utf8Input) {
+        byte[] z1 = z1UTF8(utf8Input);
+        byte[] z2 = z2UTF8(utf8Input);
+        byte[] z3 = z3UTF8(utf8Input);
+
+        return shortest(utf8Input, z1, z2, z3);
+    }
+
+    /**
+     * Compresses the string and checks if the encoding is correct, throwing exception if it didn't work
+     *
+     * @param input
+     * @return the compressed byte[]
+     */
+    public static byte[] secureZip(String input) {
+        byte[] zipped = zip(input);
+        String unzipped = unzip(zipped);
+        if (!input.equals(unzipped)) {
+            throw new IllegalArgumentException("Error in encoding String '" + (input.length() > 100 ? input.substring(0, 100) + "..." : input) + "'");
+        }
+        return zipped;
+    }
+
+    /**
+     * Compresses the string using a custom encoding with 5 bits for a-z and space charactes, and adds 3 bits to every other UTF-8 character
+     *
+     * @param input
+     * @return the compressed byte[]
+     */
     public static byte[] z1(String input) {
-        return privateZ1(input.getBytes(StandardCharsets.UTF_8));
+        return z1UTF8(input.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static byte[] privateZ1(byte[] input) {
+    /**
+     * Like z1, but with an UTF-8 encoded string as input
+     *
+     * @param utf8Input
+     * @return the compressed byte[]
+     */
+    public static byte[] z1UTF8(byte[] utf8Input) {
         BitWriter output = new BitWriter();
         output.write01("100");
 
-        try (PushbackInputStream bais = new PushbackInputStream(new ByteArrayInputStream(input))) {
-            boolean caps = false;
+        boolean caps = false;
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(utf8Input)) {
+            int in;
+            while ((in = bais.read()) != -1) {
+                byte byt = (byte) in;
+                int nExtraByte = getNExtraBytes(byt);
+                for (int i = 0; i < nExtraByte; i++) {
+                    bais.read();
+                }
+                if (byt >= 97 && byt <= 122) { // lower
+                    caps = false;
+                    break;
+
+                }
+                if (byt >= 65 && byt <= 90) { // upper
+                    caps = true;
+                    break;
+                }
+            }
+        } catch (IOException e) {
+
+        }
+        output.write(caps);
+
+        try (PushbackInputStream bais = new PushbackInputStream(new ByteArrayInputStream(utf8Input))) {
             int in;
             while ((in = bais.read()) != -1) {
                 byte byt = (byte) in;
@@ -98,6 +180,12 @@ public class LitheString {
         return output.toByteArray();
     }
 
+    /**
+     * Returns how many bytes are after this to complete the UTF-8 character
+     *
+     * @param byt
+     * @return the number of extra bytes
+     */
     private static int getNExtraBytes(byte byt) {
         int nExtraByte = 0;
         if (!startsWith(byt, "0")) { //1 byte
@@ -112,6 +200,13 @@ public class LitheString {
         return nExtraByte;
     }
 
+    /**
+     * Returns if byte parameter starts with the sequence of "010..." as written in binaryString
+     *
+     * @param byt
+     * @param binaryString
+     * @return if the 010... of binaryString match the start of byt
+     */
     private static boolean startsWith(byte byt, String binaryString) {
         byte pos = 7;
         for (int i = 0; i < binaryString.length(); i++) {
@@ -129,11 +224,23 @@ public class LitheString {
         return true;
     }
 
+    /**
+     * Compresses the string using a modified Huffman encoding
+     *
+     * @param input
+     * @return the compressed byte[]
+     */
     public static byte[] z2(String input) {
-        return privateZ2(input.getBytes(StandardCharsets.UTF_8));
+        return z2UTF8(input.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static byte[] privateZ2(byte[] input) {
+    /**
+     * Like z2, but with an UTF-8 encoded string as input
+     *
+     * @param input
+     * @return the compressed byte[]
+     */
+    public static byte[] z2UTF8(byte[] input) {
         List<UTF8Char> listChars = new ArrayList<>();
         try (ByteArrayInputStream bais = new ByteArrayInputStream(input)) {
             int in;
@@ -153,7 +260,21 @@ public class LitheString {
 
         }
 
-        Map<UTF8Char, String> huff = Huffer.huff(listChars);
+        Map<UTF8Char, Integer> objectFreqs = Huffer.makeFreqs(listChars);
+        {
+            int howMany = 0;
+            for (Iterator<Map.Entry<UTF8Char, Integer>> it = objectFreqs.entrySet().iterator(); it.hasNext(); ) {
+                Map.Entry<UTF8Char, Integer> next = it.next();
+                if (next.getValue() == 1) {
+                    it.remove();
+                    howMany++;
+                }
+            }
+            if (howMany > 0) {
+                objectFreqs.put(UTF8Char.getInvalidChar(), howMany);
+            }
+        }
+        Map<UTF8Char, String> huff = Huffer.makeMap(objectFreqs);
 
         List<Map.Entry<UTF8Char, String>> listHuff = new ArrayList<>();
         for (Map.Entry<UTF8Char, String> e : huff.entrySet()) {
@@ -175,6 +296,15 @@ public class LitheString {
         return output.toByteArray();
     }
 
+    /**
+     * Inner workings of z2
+     *
+     * @param listChars
+     * @param spareBits
+     * @param huff
+     * @param listHuff
+     * @return
+     */
     private static BitWriter innerZ2(List<UTF8Char> listChars, int spareBits, Map<UTF8Char, String> huff, List<Map.Entry<UTF8Char, String>> listHuff) {
         BitWriter output = new BitWriter();
         output.write01("1010");
@@ -196,18 +326,36 @@ public class LitheString {
                 output.write01("10");
             }
             output.write01(e.getValue());
-
-            for (int i = 0; i < e.getKey().getBytes().length; i++) {
-                output.write(e.getKey().getBytes()[i]);
+            if (e.getKey().isInvalid()) {
+                output.write01("10");
+            } else {
+                for (int i = 0; i < e.getKey().getBytes().length; i++) {
+                    output.write(e.getKey().getBytes()[i]);
+                }
             }
         }
         output.write01("11");
         for (UTF8Char c : listChars) {
-            output.write01(huff.get(c));
+            String s = huff.get(c);
+            if (s != null) {
+                output.write01(s);
+
+            } else {
+                output.write01(huff.get(UTF8Char.getInvalidChar()));
+                for (byte b : c.getBytes()) {
+                    output.write(b);
+                }
+            }
         }
         return output;
     }
 
+    /**
+     * Compresses the string with 1 byte of header + standard gzip encoding of the UTF-8 content
+     *
+     * @param input
+     * @return the compressed byte[]
+     */
     public static byte[] z3(String input) {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(0b10111111);
@@ -228,6 +376,37 @@ public class LitheString {
         return output.toByteArray();
     }
 
+    /**
+     * Like z3, but with an UTF-8 encoded string as input
+     *
+     * @param input
+     * @return the compressed byte[]
+     */
+    public static byte[] z3UTF8(byte[] input) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        output.write(0b10111111);
+        try {
+            try (GZIPOutputStream writer = new GZIPOutputStream(output)) {
+                writer.write(input, 0, input.length);
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        } finally {
+            try {
+                output.close();
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e);
+            }
+        }
+        return output.toByteArray();
+    }
+
+    /**
+     * Uncompresses the compressed content with the right algorithm
+     *
+     * @param content
+     * @return the original string
+     */
     public static String unzip(byte[] content) {
         if (content == null) {
             return null;
@@ -247,13 +426,18 @@ public class LitheString {
         return new String(content, StandardCharsets.UTF_8);
     }
 
-
+    /**
+     * Uncompresses the compressed content using type1 algorithm
+     *
+     * @param content
+     * @return the original string
+     */
     private static String unzip1(byte[] content) {
         BitReader bitReader = new BitReader(content);
         bitReader.advance(3);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        boolean caps = false;
+        boolean caps = bitReader.read(1) == 1;
         while (!bitReader.isClosed()) {
             if (bitReader.peek01("111")) {
                 bitReader.advance(3);
@@ -277,6 +461,12 @@ public class LitheString {
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
     }
 
+    /**
+     * Uncompresses the compressed content using type2 algorithm
+     *
+     * @param content
+     * @return the original string
+     */
     private static String unzip2(byte[] content) {
         BitReader bitReader = new BitReader(content);
         bitReader.advance(4);
@@ -297,17 +487,24 @@ public class LitheString {
                 break;
             }
             String key = bitReader.readAsString(keyLength);
-            byte read = bitReader.read();
+            if (bitReader.peek01("10")) {
+                bitReader.advance(2);
+                UTF8Char u = UTF8Char.getInvalidChar();
+                trie.add(key, u);
+                mmm.put(key, u.asString());
+            } else {
+                byte read = bitReader.read();
 
-            int nExtraBytes = getNExtraBytes(read);
-            byte[] bytes = new byte[nExtraBytes + 1];
-            bytes[0] = read;
-            for (int i = 0; i < nExtraBytes; i++) {
-                bytes[i + 1] = bitReader.read();
+                int nExtraBytes = getNExtraBytes(read);
+                byte[] bytes = new byte[nExtraBytes + 1];
+                bytes[0] = read;
+                for (int i = 0; i < nExtraBytes; i++) {
+                    bytes[i + 1] = bitReader.read();
+                }
+                UTF8Char u = new UTF8Char(bytes);
+                trie.add(key, u);
+                mmm.put(key, u.asString());
             }
-            UTF8Char u = new UTF8Char(bytes);
-            trie.add(key, u);
-            mmm.put(key, u.asString());
         }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -317,13 +514,34 @@ public class LitheString {
                 scanner.scan(bitReader.read01Char());
             }
             UTF8Char value = scanner.getValue();
-            for (byte b : value.getBytes()) {
-                baos.write(b);
+            if (value.isInvalid()) {
+                byte read = bitReader.read();
+
+                int nExtraBytes = getNExtraBytes(read);
+                byte[] bytes = new byte[nExtraBytes + 1];
+                bytes[0] = read;
+                for (int i = 0; i < nExtraBytes; i++) {
+                    bytes[i + 1] = bitReader.read();
+                }
+                UTF8Char u = new UTF8Char(bytes);
+                for (byte b : u.getBytes()) {
+                    baos.write(b);
+                }
+            } else {
+                for (byte b : value.getBytes()) {
+                    baos.write(b);
+                }
             }
         }
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
     }
 
+    /**
+     * Uncompresses the compressed content using type3 algorithm
+     *
+     * @param content
+     * @return the original string
+     */
     private static String unzip3(byte[] content) {
         ByteArrayInputStream bais = new ByteArrayInputStream(content);
         bais.read();
@@ -344,6 +562,12 @@ public class LitheString {
         }
     }
 
+    /**
+     * Returns the shortest between these byte[]
+     *
+     * @param bytes
+     * @return the shortest byte[]
+     */
     private static byte[] shortest(byte[]... bytes) {
         byte[] shortest = bytes[0];
         for (int i = 1; i < bytes.length; i++) {
@@ -352,6 +576,17 @@ public class LitheString {
             }
         }
         return shortest;
+    }
+
+    /**
+     * Returns the value of the n-th bit of the byte
+     *
+     * @param value
+     * @param n
+     * @return the value of the n-th bit of the byte
+     */
+    private static boolean getNBitValue(byte value, byte n) {
+        return (value & (1 << n)) != 0;
     }
 
     private static class BitWriter {
@@ -572,10 +807,6 @@ public class LitheString {
         }
     }
 
-    private static boolean getNBitValue(byte value, byte n) {
-        return (value & (1 << n)) != 0;
-    }
-
     private static class Huffer {
 
         private static class HuffmanTree<T> implements Comparable<HuffmanTree<T>> {
@@ -638,11 +869,20 @@ public class LitheString {
         }
 
         public static <T> Map<T, String> huff(Collection<T> input) {
+            Map<T, Integer> objectFreqs = makeFreqs(input);
+            return makeMap(objectFreqs);
+        }
+
+        private static <T> Map<T, Integer> makeFreqs(Collection<T> input) {
             Map<T, Integer> objectFreqs = new HashMap<>();
             for (T obj : input) {
                 Integer count = objectFreqs.get(obj);
                 objectFreqs.put(obj, count == null ? 1 : count + 1);
             }
+            return objectFreqs;
+        }
+
+        private static <T> Map<T, String> makeMap(Map<T, Integer> objectFreqs) {
             Map<T, String> map = new LinkedHashMap<T, String>();
             if (objectFreqs.size() == 1) {
                 map.put(objectFreqs.entrySet().iterator().next().getKey(), "1");
@@ -655,6 +895,7 @@ public class LitheString {
     }
 
     private static class UTF8Char {
+        private static UTF8Char invalidChar = null;
         private final byte[] bytes;
 
         public UTF8Char(byte[] bytes) {
@@ -710,6 +951,17 @@ public class LitheString {
                 sb.append(' ');
             }
             return sb.toString();
+        }
+
+        public static UTF8Char getInvalidChar() {
+            if (invalidChar == null) {
+                invalidChar = new UTF8Char(new byte[]{(byte) 0b10000000});
+            }
+            return invalidChar;
+        }
+
+        public boolean isInvalid() {
+            return bytes.length == 1 && bytes[0] == (byte) 0b10000000;
         }
     }
 
