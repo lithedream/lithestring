@@ -4,7 +4,7 @@
 
 Java class to compress short (or long) strings
 
-Included in the lithecore library https://github.com/lithedream/lithecore
+Included in the lithecore library <https://github.com/lithedream/lithecore>
 
 ## Motivation
 
@@ -39,4 +39,4 @@ if (input.equals(uncompressed)){
 
 ## License
 
-LGPL-2.1
+MIT
