@@ -1,8 +1,24 @@
-package lithe.core;
+package io.github.lithedream.lithestring;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PushbackInputStream;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -835,7 +851,7 @@ public class LitheString {
                 isLeaf = true;
             }
 
-            public int compareTo(HuffmanTree o) {
+            public int compareTo(HuffmanTree<T> o) {
                 return freq - o.freq;
             }
 
@@ -855,7 +871,7 @@ public class LitheString {
             }
         }
 
-        private static <T> HuffmanTree makeHuffmanTree(Map<T, Integer> objFreqs) {
+        private static <T> HuffmanTree<T> makeHuffmanTree(Map<T, Integer> objFreqs) {
             PriorityQueue<HuffmanTree<T>> huffmanTrees = new PriorityQueue<HuffmanTree<T>>();
             for (Map.Entry<T, Integer> entry : objFreqs.entrySet()) {
                 huffmanTrees.offer(new HuffmanTree<T>(entry.getValue(), entry.getKey()));

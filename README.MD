@@ -11,6 +11,7 @@ Included in the lithecore library https://github.com/lithedream/lithecore
 I dreamed a compression algorithm expecially useful for short strings, without fear of taking up more space than the UTF-8 encoding of the original string.
 
 The compression algorithm chooses the best approach between:
+
 * Plain UTF-8 encoding (as is, without overhead)
 * An encoding which uses 5 bits for a-z, A-Z, space, and encodes every other UTF-8 character with 3 bits of overhead (for really short Latin strings)
 * An intermediate algorithm based on Huffman encoding (dictionary header, then encoded string)
