@@ -25,20 +25,32 @@ import java.util.zip.GZIPOutputStream;
 
 public class LitheString {
 
-    private byte[] content;
+    private byte[] compressed;
 
-    public LitheString(String input) {
-        this.content = zip(input);
+    protected LitheString(String input) {
+        this.compressed = zip(input);
+    }
+
+    protected LitheString(byte[] compressed) {
+        this.compressed = compressed;
+    }
+
+    public static LitheString of(String input) {
+        return new LitheString(input);
+    }
+
+    public static LitheString fromBytes(byte[] compressed) {
+        return new LitheString(compressed);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return this == obj || (obj instanceof LitheString && Arrays.equals(((LitheString) obj).content, this.content));
+        return this == obj || (obj instanceof LitheString && Arrays.equals(((LitheString) obj).compressed, this.compressed));
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(content);
+        return Arrays.hashCode(compressed);
     }
 
     /**
@@ -47,7 +59,7 @@ public class LitheString {
      * @return the zipped byte[] content
      */
     public byte[] getBytes() {
-        return content;
+        return compressed;
     }
 
     /**
@@ -56,7 +68,7 @@ public class LitheString {
      * @return the corresponding String content
      */
     public String getString() {
-        return unzip(content);
+        return unzip(compressed);
     }
 
     /**
@@ -77,11 +89,19 @@ public class LitheString {
      * @return the compressed byte[]
      */
     public static byte[] zipUTF8(byte[] utf8Input) {
-        byte[] z1 = z1UTF8(utf8Input);
-        byte[] z2 = z2UTF8(utf8Input);
-        byte[] z3 = z3UTF8(utf8Input);
-
-        return shortest(utf8Input, z1, z2, z3);
+        int len = utf8Input.length;
+        if (len <= 64) {
+            byte[] z1 = z1UTF8(utf8Input);
+            byte[] z2 = z2UTF8(utf8Input);
+            return shortest(utf8Input, z1, z2);
+        }
+        if (len <= 512) {
+            byte[] z1 = z1UTF8(utf8Input);
+            byte[] z2 = z2UTF8(utf8Input);
+            byte[] z3 = z3UTF8(utf8Input);
+            return shortest(utf8Input, z1, z2, z3);
+        }
+        return z3UTF8(utf8Input);
     }
 
     /**
@@ -884,11 +904,6 @@ public class LitheString {
             return huffmanTrees.poll();
         }
 
-        public static <T> Map<T, String> huff(Collection<T> input) {
-            Map<T, Integer> objectFreqs = makeFreqs(input);
-            return makeMap(objectFreqs);
-        }
-
         private static <T> Map<T, Integer> makeFreqs(Collection<T> input) {
             Map<T, Integer> objectFreqs = new HashMap<>();
             for (T obj : input) {
@@ -928,11 +943,6 @@ public class LitheString {
 
         public byte[] getBytes() {
             return bytes;
-        }
-
-
-        public byte getFirst() {
-            return bytes[0];
         }
 
         @Override
