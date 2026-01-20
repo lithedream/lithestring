@@ -11,7 +11,7 @@ public class LitheStringAlgorithm {
      * @return the compressed byte[]
      */
     public static byte[] zip(String input) {
-        byte[] z0 = input.getBytes(StandardCharsets.UTF_8);
+        byte[] z0 = input != null ? input.getBytes(StandardCharsets.UTF_8) : null;
         return zipUTF8(z0);
     }
 
@@ -22,7 +22,13 @@ public class LitheStringAlgorithm {
      * @return the compressed byte[]
      */
     public static byte[] zipUTF8(byte[] utf8Input) {
+        if (utf8Input == null) {
+            return null;
+        }
         int len = utf8Input.length;
+        if (len == 0) {
+            return new byte[] {};
+        }
         if (len <= 64) {
             byte[] z1 = Type1Algorithm.z1UTF8(utf8Input);
             byte[] z2 = Type2Algorithm.z2UTF8(utf8Input);
@@ -47,7 +53,7 @@ public class LitheStringAlgorithm {
     public static byte[] secureZip(String input) {
         byte[] zipped = zip(input);
         String unzipped = unzip(zipped);
-        if (!input.equals(unzipped)) {
+        if (zipped != null && unzipped != null && !input.equals(unzipped)) {
             throw new IllegalArgumentException("Error in encoding String '"
                     + (input.length() > 100 ? input.substring(0, 100) + "..." : input) + "'");
         }
