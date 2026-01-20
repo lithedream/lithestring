@@ -36,4 +36,4 @@ if (input.equals(uncompressed)){
 
 ## License
 
-LGPL-2.1
+MIT
