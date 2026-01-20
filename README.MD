@@ -1,41 +1,46 @@
-# lithestring
+# LitheString
 
-## Synopsis
+A tiny Java library that compresses short strings without risking bloat.
 
-Java class to compress short (or long) strings
+## Why
 
-Included in the lithecore library <https://github.com/lithedream/lithecore>
+Most compressors get worse on short text. LitheString picks the best of multiple strategies at runtime and falls back to plain UTF‑8 when compression wouldn’t help.
 
-## Motivation
+## How it works
 
-I dreamed a compression algorithm expecially useful for short strings, without fear of taking up more space than the UTF-8 encoding of the original string.
+The encoder chooses the smallest result among:
 
-The compression algorithm chooses the best approach between:
+- Raw UTF‑8 (no overhead)
+- A 5‑bit alphabet for `a–z`, `A–Z`, and space (great for short Latin text)
+- A Huffman‑based encoding (dictionary header + payload)
+- GZIP with a 1‑byte header (best for long or repetitive strings)
 
-* Plain UTF-8 encoding (as is, without overhead)
-* An encoding which uses 5 bits for a-z, A-Z, space, and encodes every other UTF-8 character with 3 bits of overhead (for really short Latin strings)
-* An intermediate algorithm based on Huffman encoding (dictionary header, then encoded string)
-* 1 byte of overhead then GZIP compression (for long strings)
+The decoder inspects the header to determine the correct algorithm.
 
-The decompression algorithm looks if it is a plain UTF-8 encoding or a compressed one, and in the latter case reads the data header to apply the correct decoding algorithm.
-
-## Code Example
+## Quick start
 
 ```java
-String input = ...;
-byte[] compressed = LitheString.zip(input); // in the worst case, compressed is the plain UTF-8 encoding of input
+String input = "...";
+
+// Functional API
+byte[] compressed = LitheString.zip(input);
 String uncompressed = LitheString.unzip(compressed);
 
-if (input.equals(uncompressed)){
-    System.out.println("It works!");
-} else {
-    System.out.println("Please submit a bug for "+input);
-}
+// Value object API
+LitheString ls = LitheString.of(input);
+byte[] bytes = ls.getBytes();
+String text = ls.getString();
+```
+
+## Safety
+
+```java
+byte[] compressed = LitheString.secureZip(input); // throws if round‑trip fails
 ```
 
 ## Author
 
-* **lithedream**
+- **lithedream**
 
 ## License
 
