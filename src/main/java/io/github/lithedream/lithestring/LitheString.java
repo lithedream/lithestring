@@ -1,5 +1,6 @@
 package io.github.lithedream.lithestring;
 
+import java.io.Serializable;
 import java.util.Arrays;
 
 import io.github.lithedream.lithestring.internal.LitheStringAlgorithm;
@@ -29,7 +30,12 @@ import io.github.lithedream.lithestring.internal.LitheStringAlgorithm;
  * 
  * }</pre>
  */
-public class LitheString {
+public class LitheString implements Serializable {
+
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
 
     private byte[] compressed;
 

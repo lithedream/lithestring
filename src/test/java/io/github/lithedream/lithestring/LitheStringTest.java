@@ -15,6 +15,7 @@ class LitheStringTest {
     @Test
     void roundTripBasicCases() {
         assertRoundTrip("");
+        assertRoundTrip("a");
         assertRoundTrip("hello world");
         assertRoundTrip("Hello World Test");
         assertRoundTrip("Caffe\\u00e8 naive facade");
