@@ -21,7 +21,7 @@ class Type2Algorithm {
      * @return the compressed byte[]
      */
     static byte[] z2(String input) {
-        return z2UTF8(input.getBytes(StandardCharsets.UTF_8));
+        return z2UTF8(input != null ? input.getBytes(StandardCharsets.UTF_8) : null);
     }
 
     /**
@@ -31,6 +31,12 @@ class Type2Algorithm {
      * @return the compressed byte[]
      */
     static byte[] z2UTF8(byte[] input) {
+        if (input == null) {
+            return null;
+        }
+        if (input.length == 0) {
+            return new byte[] {};
+        }
         List<UTF8Char> listChars = new ArrayList<>();
         try (ByteArrayInputStream bais = new ByteArrayInputStream(input)) {
             int in;

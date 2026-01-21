@@ -15,7 +15,7 @@ class Type1Algorithm {
      * @return the compressed byte[]
      */
     static byte[] z1(String input) {
-        return z1UTF8(input.getBytes(StandardCharsets.UTF_8));
+        return z1UTF8(input != null ? input.getBytes(StandardCharsets.UTF_8) : null);
     }
 
     /**
@@ -25,6 +25,12 @@ class Type1Algorithm {
      * @return the compressed byte[]
      */
     static byte[] z1UTF8(byte[] utf8Input) {
+        if (utf8Input == null) {
+            return null;
+        }
+        if (utf8Input.length == 0) {
+            return new byte[] {};
+        }
         BitWriter output = new BitWriter();
         output.write01("100");
 

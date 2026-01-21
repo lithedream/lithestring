@@ -20,7 +20,7 @@ The decoder inspects the header to determine the correct algorithm.
 ## Quick start
 
 ```java
-String input = "...";
+String input = "hello world";
 
 // Functional API
 byte[] compressed = LitheString.zip(input);
@@ -30,6 +30,9 @@ String uncompressed = LitheString.unzip(compressed);
 LitheString ls = LitheString.of(input);
 byte[] bytes = ls.getBytes();
 String text = ls.getString();
+
+assert input.equals(text);
+assert bytes.length <= input.getBytes(StandardCharsets.UTF_8).length;
 ```
 
 ## Safety

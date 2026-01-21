@@ -4,6 +4,31 @@ import java.util.Arrays;
 
 import io.github.lithedream.lithestring.internal.LitheStringAlgorithm;
 
+/**
+ * Compact string container that stores a compressed representation of a String.
+ *
+ * <p>
+ * The compression algorithm chooses the smallest output among:
+ * raw UTF-8, a 5-bit Latin alphabet encoding, a Huffman-based encoding,
+ * and GZIP with a small header. Decoding is automatic and based on a header.
+ * </p>
+ *
+ * <p>
+ * Usage:
+ * </p>
+ * 
+ * <pre>{@code
+ * String input = "hello world";
+ * 
+ * LitheString ls = LitheString.of(input);
+ * byte[] bytes = ls.getBytes();
+ * String text = ls.getString();
+ * 
+ * assert input.equals(text);
+ * assert bytes.length <= input.getBytes(StandardCharsets.UTF_8).length;
+ * 
+ * }</pre>
+ */
 public class LitheString {
 
     private byte[] compressed;
@@ -16,10 +41,22 @@ public class LitheString {
         this.compressed = compressed;
     }
 
+    /**
+     * Creates a compressed instance from a String.
+     *
+     * @param input the input string
+     * @return a new {@code LitheString} instance
+     */
     public static LitheString of(String input) {
         return new LitheString(input);
     }
 
+    /**
+     * Creates a {@code LitheString} instance from already-compressed bytes.
+     *
+     * @param compressed the compressed byte array
+     * @return a new {@code LitheString} instance
+     */
     public static LitheString fromBytes(byte[] compressed) {
         return new LitheString(compressed);
     }
@@ -36,49 +73,51 @@ public class LitheString {
     }
 
     /**
-     * Returns the zipped byte[] content
+     * Returns the compressed bytes for this instance.
      *
-     * @return the zipped byte[] content
+     * @return compressed bytes
      */
     public byte[] getBytes() {
         return compressed;
     }
 
     /**
-     * Returns the corresponding String content
+     * Returns the original string by decoding the stored bytes.
      *
-     * @return the corresponding String content
+     * @return decoded string
      */
     public String getString() {
         return LitheStringAlgorithm.unzip(compressed);
     }
 
     /**
-     * Compresses the string as best as it can
+     * Compresses a string and returns the encoded bytes.
+     * The output is never larger than the UTF-8 bytes of the input.
      *
-     * @param input
-     * @return the compressed byte[]
+     * @param input the input string
+     * @return compressed bytes
      */
     public static byte[] zip(String input) {
         return LitheStringAlgorithm.zip(input);
     }
 
     /**
-     * Uncompresses the compressed content with the right algorithm
+     * Decompresses the given bytes back into a string.
      *
-     * @param content
-     * @return the original string
+     * @param content compressed bytes produced by {@link #zip(String)}
+     * @return decoded string
      */
     public static String unzip(byte[] content) {
         return LitheStringAlgorithm.unzip(content);
     }
 
     /**
-     * Compresses the string and checks if the encoding is correct, throwing
-     * exception if it didn't work
+     * Compresses a string and validates round-trip decoding.
+     * Throws an exception if the decoded string differs.
      *
-     * @param input
-     * @return the compressed byte[]
+     * @param input the input string
+     * @return compressed bytes
+     * @throws IllegalArgumentException if the decoded output differs from input
      */
     public static byte[] secureZip(String input) {
         return LitheStringAlgorithm.secureZip(input);

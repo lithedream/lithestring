@@ -18,6 +18,9 @@ class Type3Algorithm {
      * @return the compressed byte[]
      */
     static byte[] z3(String input) {
+        if (input == null) {
+            return null;
+        }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(0b10111111);
         try {
@@ -44,6 +47,9 @@ class Type3Algorithm {
      * @return the compressed byte[]
      */
     static byte[] z3UTF8(byte[] input) {
+        if (input == null) {
+            return null;
+        }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(0b10111111);
         try {

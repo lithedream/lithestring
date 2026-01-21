@@ -15,6 +15,19 @@ public class LitheStringAlgorithm {
         return zipUTF8(z0);
     }
 
+    public static byte[] zip(String input, int type) {
+        switch (type) {
+            case 1:
+                return Type1Algorithm.z1(input);
+            case 2:
+                return Type2Algorithm.z2(input);
+            case 3:
+                return Type3Algorithm.z3(input);
+            default:
+                throw new IllegalArgumentException("Type " + type + " not valid. Valid values are 1,2,3");
+        }
+    }
+
     /**
      * Compresses the string already in UTF-8 form as best as it can
      *
@@ -41,6 +54,19 @@ public class LitheStringAlgorithm {
             return shortest(utf8Input, z1, z2, z3);
         }
         return Type3Algorithm.z3UTF8(utf8Input);
+    }
+
+    public static byte[] zipUTF8(byte[] utf8Input, int type) {
+        switch (type) {
+            case 1:
+                return Type1Algorithm.z1UTF8(utf8Input);
+            case 2:
+                return Type2Algorithm.z2UTF8(utf8Input);
+            case 3:
+                return Type3Algorithm.z3UTF8(utf8Input);
+            default:
+                throw new IllegalArgumentException("Type " + type + " not valid. Valid values are 1,2,3");
+        }
     }
 
     /**
