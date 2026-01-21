@@ -116,6 +116,8 @@ public final class LitheString implements Serializable {
      * Returns the compressed bytes for this instance.
      * If {@code immutable} is true, this returns a defensive copy; otherwise it
      * returns the internal array.
+     *
+     * @return compressed bytes
      */
     public byte[] getBytes() {
         if (immutable && compressed != null) {
