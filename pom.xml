@@ -6,7 +6,7 @@
 
   <groupId>io.github.lithedream</groupId>
   <artifactId>lithestring</artifactId>
-  <version>1.9.0</version>
+  <version>2.0.0</version>
   <name>LitheString</name>
   <description>Compress/decompress any Java String to/from byte[] without ever taking up more space (no dependencies).</description>
   <url>https://github.com/lithedream/lithestring</url>
@@ -37,7 +37,6 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>8</maven.compiler.release>
-    <maven.javadoc.failOnError>false</maven.javadoc.failOnError>
   </properties>
 
   <dependencies>
@@ -93,7 +92,49 @@
         </executions>
       </plugin>
 
+      <plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.10.0</version>
+        <extensions>true</extensions>
+        <configuration>
+          <publishingServerId>central</publishingServerId>
+          <autoPublish>true</autoPublish>
+        </configuration>
+      </plugin>
+
     </plugins>
   </build>
+  
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.7</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <!-- Needed in many CI environments -->
+              <gpgArguments>
+                <arg>--pinentry-mode</arg>
+                <arg>loopback</arg>
+              </gpgArguments>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
 </project>
