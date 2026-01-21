@@ -64,7 +64,8 @@ public class LitheStringAlgorithm {
             byte[] z3 = Type3Algorithm.z3UTF8(utf8Input);
             return shortest(utf8Input, z1, z2, z3);
         }
-        return Type3Algorithm.z3UTF8(utf8Input);
+        byte[] z3 = Type3Algorithm.z3UTF8(utf8Input);
+        return shortest(utf8Input, z3);
     }
 
     /**

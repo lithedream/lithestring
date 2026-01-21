@@ -1,6 +1,7 @@
 package io.github.lithedream.lithestring;
 
 import java.io.Serializable;
+import java.lang.ref.SoftReference;
 import java.util.Arrays;
 
 import io.github.lithedream.lithestring.internal.LitheStringAlgorithm;
@@ -30,21 +31,22 @@ import io.github.lithedream.lithestring.internal.LitheStringAlgorithm;
  * 
  * }</pre>
  */
-public class LitheString implements Serializable {
+public final class LitheString implements Serializable {
 
     /**
      * 
      */
     private static final long serialVersionUID = 1L;
 
-    private byte[] compressed;
+    private final byte[] compressed;
+    private final boolean immutable;
+    private final boolean cacheEnabled;
+    private transient SoftReference<String> cached;
 
-    protected LitheString(String input) {
-        this.compressed = zip(input);
-    }
-
-    protected LitheString(byte[] compressed) {
+    private LitheString(byte[] compressed, boolean immutable, boolean cacheEnabled) {
         this.compressed = compressed;
+        this.immutable = immutable;
+        this.cacheEnabled = cacheEnabled;
     }
 
     /**
@@ -54,7 +56,23 @@ public class LitheString implements Serializable {
      * @return a new {@code LitheString} instance
      */
     public static LitheString of(String input) {
-        return new LitheString(input);
+        return of(input, false, false);
+    }
+
+    /**
+     * Creates a compressed instance with configurable behaviors.
+     *
+     * @param input        the input string
+     * @param immutable    if true, the compressed bytes are defensively copied and
+     *                     {@link #getBytes()}
+     *                     returns a copy; if false, the internal array may be
+     *                     exposed
+     * @param cacheEnabled if true, {@link #getString()} soft-caches the decoded
+     *                     string
+     * @return a new {@code LitheString} instance
+     */
+    public static LitheString of(String input, boolean immutable, boolean cacheEnabled) {
+        return new LitheString(zip(input), immutable, cacheEnabled);
     }
 
     /**
@@ -64,7 +82,23 @@ public class LitheString implements Serializable {
      * @return a new {@code LitheString} instance
      */
     public static LitheString fromBytes(byte[] compressed) {
-        return new LitheString(compressed);
+        return fromBytes(compressed, false, false);
+    }
+
+    /**
+     * Creates a {@code LitheString} instance from already-compressed bytes.
+     *
+     * @param compressed   the compressed byte array
+     * @param immutable    if true, the bytes are defensively copied and
+     *                     {@link #getBytes()} returns a copy
+     * @param cacheEnabled if true, {@link #getString()} soft-caches the decoded
+     *                     string
+     * @return a new {@code LitheString} instance
+     */
+    public static LitheString fromBytes(byte[] compressed, boolean immutable, boolean cacheEnabled) {
+        return new LitheString(
+                (immutable && compressed != null) ? Arrays.copyOf(compressed, compressed.length) : compressed,
+                immutable, cacheEnabled);
     }
 
     @Override
@@ -80,10 +114,13 @@ public class LitheString implements Serializable {
 
     /**
      * Returns the compressed bytes for this instance.
-     *
-     * @return compressed bytes
+     * If {@code immutable} is true, this returns a defensive copy; otherwise it
+     * returns the internal array.
      */
     public byte[] getBytes() {
+        if (immutable && compressed != null) {
+            return Arrays.copyOf(compressed, compressed.length);
+        }
         return compressed;
     }
 
@@ -93,7 +130,17 @@ public class LitheString implements Serializable {
      * @return decoded string
      */
     public String getString() {
-        return LitheStringAlgorithm.unzip(compressed);
+        if (cacheEnabled) {
+            String value = cached == null ? null : cached.get();
+            if (value != null) {
+                return value;
+            }
+        }
+        String decoded = LitheStringAlgorithm.unzip(compressed);
+        if (cacheEnabled) {
+            cached = new SoftReference<>(decoded);
+        }
+        return decoded;
     }
 
     /**
