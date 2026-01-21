@@ -5,16 +5,26 @@ import java.nio.charset.StandardCharsets;
 public class LitheStringAlgorithm {
 
     /**
-     * Compresses the string as best as it can
+     * Compresses the string using the best available encoding.
+     * Returns {@code null} if {@code input} is null.
      *
-     * @param input
-     * @return the compressed byte[]
+     * @param input the input string
+     * @return the compressed byte array, or {@code null} if input is null
      */
     public static byte[] zip(String input) {
         byte[] z0 = input != null ? input.getBytes(StandardCharsets.UTF_8) : null;
         return zipUTF8(z0);
     }
 
+    /**
+     * Compresses the string using a specific algorithm.
+     * Type values: 1 (type1), 2 (type2), 3 (type3/gzip).
+     *
+     * @param input the input string
+     * @param type  compression type (1, 2, or 3)
+     * @return the compressed byte array
+     * @throws IllegalArgumentException if {@code type} is not 1, 2, or 3
+     */
     public static byte[] zip(String input, int type) {
         switch (type) {
             case 1:
@@ -29,10 +39,11 @@ public class LitheStringAlgorithm {
     }
 
     /**
-     * Compresses the string already in UTF-8 form as best as it can
+     * Compresses already UTF-8 encoded input using the best available encoding.
+     * Returns {@code null} if {@code utf8Input} is null.
      *
-     * @param utf8Input
-     * @return the compressed byte[]
+     * @param utf8Input UTF-8 encoded bytes
+     * @return the compressed byte array, or {@code null} if input is null
      */
     public static byte[] zipUTF8(byte[] utf8Input) {
         if (utf8Input == null) {
@@ -56,6 +67,15 @@ public class LitheStringAlgorithm {
         return Type3Algorithm.z3UTF8(utf8Input);
     }
 
+    /**
+     * Compresses UTF-8 bytes using a specific algorithm.
+     * Type values: 1 (type1), 2 (type2), 3 (type3/gzip).
+     *
+     * @param utf8Input UTF-8 encoded bytes
+     * @param type      compression type (1, 2, or 3)
+     * @return the compressed byte array
+     * @throws IllegalArgumentException if {@code type} is not 1, 2, or 3
+     */
     public static byte[] zipUTF8(byte[] utf8Input, int type) {
         switch (type) {
             case 1:
@@ -70,11 +90,11 @@ public class LitheStringAlgorithm {
     }
 
     /**
-     * Compresses the string and checks if the encoding is correct, throwing
-     * exception if it didn't work
+     * Compresses and validates round-trip decoding.
      *
-     * @param input
-     * @return the compressed byte[]
+     * @param input the input string
+     * @return the compressed byte array
+     * @throws IllegalArgumentException if decoding does not match the input
      */
     public static byte[] secureZip(String input) {
         byte[] zipped = zip(input);
@@ -87,10 +107,11 @@ public class LitheStringAlgorithm {
     }
 
     /**
-     * Uncompresses the compressed content with the right algorithm
+     * Decompresses the given byte array back into a string.
+     * Returns {@code null} if {@code content} is null.
      *
-     * @param content
-     * @return the original string
+     * @param content compressed bytes produced by {@link #zip(String)}
+     * @return the decoded string, or {@code null} if content is null
      */
     public static String unzip(byte[] content) {
         if (content == null) {

@@ -44,8 +44,8 @@ class LitheStringTest {
                 "hello world",
                 "Hello World Test",
                 "short latin",
-                "Caffe\\u00e8 naive facade",
-                "smile \\uD83D\\uDE42 rocket \\uD83D\\uDE80",
+                "Caff\u00e8 naive facade",
+                "smile \uD83D\uDE42 rocket \uD83D\uDE80",
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "The quick brown fox jumps over the lazy dog. "
         };
