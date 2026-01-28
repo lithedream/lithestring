@@ -156,7 +156,7 @@ class Type2Algorithm {
     static String unzip2(byte[] content) {
         BitReader bitReader = new BitReader(content);
         bitReader.advance(4);
-        while (bitReader.read(1) == 0)
+        while (bitReader.read(1) == 0 && !bitReader.isClosed())
             ;
 
         int keyLength = 0;
@@ -164,7 +164,7 @@ class Type2Algorithm {
         Map<String, String> mmm = new HashMap<>();
         while (!bitReader.isClosed()) {
             if (bitReader.peek01("0")) {
-                while (bitReader.read(1) == 0) {
+                while (bitReader.read(1) == 0 && !bitReader.isClosed()) {
                     keyLength++;
                 }
             } else if (bitReader.peek01("10")) {
