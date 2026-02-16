@@ -19,6 +19,18 @@ The decoder inspects the header to determine the correct algorithm.
 
 ## Quick start
 
+Maven dependency
+
+```xml
+<dependency>
+    <groupId>io.github.lithedream</groupId>
+    <artifactId>lithestring</artifactId>
+    <version>2.0.1</version>
+</dependency>
+```
+
+Sample use
+
 ```java
 String input = "hello world";
 
